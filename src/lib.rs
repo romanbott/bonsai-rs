@@ -46,6 +46,19 @@ impl<T> Node<T> {
 
         hijo.busca(key)
     }
+
+    fn insertar(&mut self, kv: KVPair<T>) -> Result<(), KVPair<T>> {
+        if self.es_hoja() {
+            if self.keys.len() < 3 {
+                let pos = self.key_pos(kv.key);
+
+                self.keys.insert(pos, kv);
+                return Ok(());
+            }
+        }
+
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -93,5 +106,15 @@ mod tests {
         assert!(arbol.busca(4).is_some());
         assert!(arbol.busca(6).is_some());
         assert!(arbol.busca(5).is_none());
+    }
+
+    #[test]
+    fn inserta_en_hoja() {
+        let mut hoja = Node {
+            keys: vec![1.into(), 3.into()],
+            children: vec![],
+        };
+
+        assert!(hoja.insertar(2.into()).is_ok());
     }
 }
