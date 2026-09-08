@@ -18,14 +18,15 @@ struct Node<T> {
 }
 
 impl<T> Node<T> {
-    fn busca_hijo(&self, key: i32) -> &Node<T> {
-        let pos = self
-            .keys
+    fn key_pos(&self, key: i32) -> usize {
+        self.keys
             .iter()
             .position(|kv| kv.key > key)
-            .unwrap_or(self.keys.len());
+            .unwrap_or(self.keys.len())
+    }
 
-        &self.children[pos]
+    fn busca_hijo(&self, key: i32) -> &Node<T> {
+        &self.children[self.key_pos(key)]
     }
 
     fn es_hoja(&self) -> bool {
