@@ -23,8 +23,7 @@ impl<T> Node<T> {
             .keys
             .iter()
             .position(|kv| kv.key > key)
-            .unwrap_or(self.keys.len())
-            - 1;
+            .unwrap_or(self.keys.len());
 
         &self.children[pos]
     }
@@ -70,5 +69,28 @@ mod tests {
         };
 
         assert!(arbol.busca(4).is_none())
+    }
+
+    #[test]
+    fn busca_anidado() {
+        let hoja1 = Node {
+            keys: vec![1.into(), 2.into(), 3.into()],
+            children: vec![],
+        };
+
+        let hoja2 = Node {
+            keys: vec![6.into(), 8.into()],
+            children: vec![],
+        };
+
+        let arbol = Node {
+            keys: vec![4.into()],
+            children: vec![hoja1, hoja2],
+        };
+
+        assert!(arbol.busca(1).is_some());
+        assert!(arbol.busca(4).is_some());
+        assert!(arbol.busca(6).is_some());
+        assert!(arbol.busca(5).is_none());
     }
 }
