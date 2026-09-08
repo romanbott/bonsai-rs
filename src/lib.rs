@@ -1,3 +1,4 @@
+#[derive(PartialEq, Eq, Debug)]
 struct KVPair<T> {
     key: i32,
     value: T,
@@ -56,9 +57,18 @@ impl<T> Node<T> {
             if self.keys.len() < 3 {
                 return Ok(());
             }
+
+            return Err(self.keys.remove(1));
         }
 
-        todo!()
+        let pos = self.key_pos(kv.key);
+
+        match self.children[pos].insertar(kv) {
+            Ok(_) => Ok(()),
+            Err(elevada) => {
+                todo!()
+            }
+        }
     }
 }
 
@@ -117,5 +127,36 @@ mod tests {
         };
 
         assert!(hoja.insertar(2.into()).is_ok());
+    }
+
+    #[test]
+    fn inserta_en_hoja_llena() {
+        let mut hoja = Node {
+            keys: vec![1.into(), 3.into()],
+            children: vec![],
+        };
+
+        assert!(hoja.insertar(2.into()).is_err());
+
+        assert_eq!(hoja.keys, vec![1.into(), 3.into()])
+    }
+
+    fn inserta_en_nodo_interno() {
+        let hoja1 = Node {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        let hoja2 = Node {
+            keys: vec![6.into()],
+            children: vec![],
+        };
+
+        let mut arbol = Node {
+            keys: vec![4.into()],
+            children: vec![hoja1, hoja2],
+        };
+
+        assert!(arbol.insertar(7.into()).is_ok())
     }
 }
