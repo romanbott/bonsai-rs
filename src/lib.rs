@@ -29,9 +29,17 @@ impl<T> Node<T> {
         &self.children[pos]
     }
 
+    fn es_hoja(&self) -> bool {
+        self.children.len() == 0
+    }
+
     fn busca(&self, key: i32) -> Option<&KVPair<T>> {
         if let Some(kv) = self.keys.iter().find(|kv| kv.key == key) {
             return Some(kv);
+        }
+
+        if self.es_hoja() {
+            return None;
         }
 
         let hijo = self.busca_hijo(key);
@@ -52,5 +60,15 @@ mod tests {
         };
 
         assert!(arbol.busca(1).is_some())
+    }
+
+    #[test]
+    fn busca_simple_no_existe() {
+        let arbol = Node {
+            keys: vec![1.into(), 2.into(), 3.into()],
+            children: vec![],
+        };
+
+        assert!(arbol.busca(4).is_none())
     }
 }
