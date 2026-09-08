@@ -49,10 +49,11 @@ impl<T> Node<T> {
 
     fn insertar(&mut self, kv: KVPair<T>) -> Result<(), KVPair<T>> {
         if self.es_hoja() {
-            if self.keys.len() < 3 {
-                let pos = self.key_pos(kv.key);
+            let pos = self.key_pos(kv.key);
 
-                self.keys.insert(pos, kv);
+            self.keys.insert(pos, kv);
+
+            if self.keys.len() < 3 {
                 return Ok(());
             }
         }
@@ -68,7 +69,7 @@ mod tests {
     #[test]
     fn busca_simple() {
         let arbol = Node {
-            keys: vec![1.into(), 2.into(), 3.into()],
+            keys: vec![1.into(), 2.into()],
             children: vec![],
         };
 
@@ -78,7 +79,7 @@ mod tests {
     #[test]
     fn busca_simple_no_existe() {
         let arbol = Node {
-            keys: vec![1.into(), 2.into(), 3.into()],
+            keys: vec![1.into(), 2.into()],
             children: vec![],
         };
 
@@ -88,7 +89,7 @@ mod tests {
     #[test]
     fn busca_anidado() {
         let hoja1 = Node {
-            keys: vec![1.into(), 2.into(), 3.into()],
+            keys: vec![1.into(), 2.into()],
             children: vec![],
         };
 
@@ -111,7 +112,7 @@ mod tests {
     #[test]
     fn inserta_en_hoja() {
         let mut hoja = Node {
-            keys: vec![1.into(), 3.into()],
+            keys: vec![1.into()],
             children: vec![],
         };
 
