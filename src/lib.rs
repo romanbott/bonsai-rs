@@ -225,6 +225,31 @@ impl<T> ArbolB<T> {
         self.root.children.push(left);
         self.root.children.push(right);
     }
+
+    fn es_valido(&self) -> bool {
+        fn check<T>(nodo: &Node<T>) -> bool {
+            if !nodo.es_hoja() && nodo.children.len() != nodo.keys.len() + 1 {
+                return false;
+            }
+            nodo.children.iter().all(check)
+        }
+        check(&self.root)
+    }
+
+    fn hojas_balanceadas(&self) -> bool {
+        fn profundidades<T>(nodo: &Node<T>, prof: usize) -> Vec<usize> {
+            if nodo.es_hoja() {
+                vec![prof]
+            } else {
+                nodo.children
+                    .iter()
+                    .flat_map(|h| profundidades(h, prof + 1))
+                    .collect()
+            }
+        }
+        let profs = profundidades(&self.root, 0);
+        profs.iter().all(|&p| p == profs[0])
+    }
 }
 
 #[cfg(test)]
@@ -446,5 +471,21 @@ mod tests {
             arbol.insertar(KVPair { key: k, value: 'x' });
             arbol.imprime();
         }
+    }
+
+    #[test]
+    fn invariante_arbol_tras_insertar_muchos() {
+        let mut arbol = ArbolB::new();
+
+        for k in 0..=30 {
+            arbol.insertar(KVPair { key: k, value: 'x' });
+        }
+
+        for k in 0..=30 {
+            assert!(arbol.root.busca(k).is_some(), "llave {k} no encontrada");
+        }
+        assert!(arbol.root.busca(99).is_none());
+        assert!(arbol.es_valido(), "invariante hijos = llaves + 1 violada");
+        assert!(arbol.hojas_balanceadas(), "hojas a distinta profundidad");
     }
 }
