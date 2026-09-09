@@ -115,7 +115,7 @@ impl<T> Node<T> {
 
         assert!(self.children.len() == 4);
 
-        let right_children = self.children.split_off(3);
+        let right_children = self.children.split_off(2);
 
         let left = Node {
             keys: vec![left_key],
