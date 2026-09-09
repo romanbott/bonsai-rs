@@ -63,12 +63,48 @@ impl<T> Node<T> {
 
         let pos = self.key_pos(kv.key);
 
-        match self.children[pos].insertar(kv) {
-            Ok(_) => Ok(()),
-            Err(elevada) => {
-                todo!()
+        let promovida = match self.children[pos].insertar(kv) {
+            Ok(_) => {
+                return Ok(());
             }
+            Err(promovida) => promovida,
+        };
+
+        let node_to_split = self.children.remove(pos);
+
+        let (left, right) = node_to_split.split();
+
+        self.children.insert(pos, left);
+        self.children.insert(pos + 1, right);
+
+        self.keys.insert(pos, promovida);
+
+        if self.keys.len() < 3 {
+            return Ok(());
         }
+
+        return Err(self.keys.remove(1));
+    }
+
+    fn split(mut self) -> (Node<T>, Node<T>) {
+        if self.es_hoja() {
+            assert!(self.keys.len() == 2);
+            let right_key = self.keys.pop().unwrap();
+            let left_key = self.keys.pop().unwrap();
+
+            let left = Node {
+                keys: vec![left_key],
+                children: vec![],
+            };
+
+            let right = Node {
+                keys: vec![right_key],
+                children: vec![],
+            };
+            return (left, right);
+        }
+
+        todo!()
     }
 }
 
@@ -141,6 +177,7 @@ mod tests {
         assert_eq!(hoja.keys, vec![1.into(), 3.into()])
     }
 
+    #[test]
     fn inserta_en_nodo_interno() {
         let hoja1 = Node {
             keys: vec![1.into(), 2.into()],
@@ -158,5 +195,27 @@ mod tests {
         };
 
         assert!(arbol.insertar(7.into()).is_ok())
+    }
+
+    #[test]
+    fn inserta_con_split_simple() {
+        let hoja1 = Node {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        let hoja2 = Node {
+            keys: vec![6.into()],
+            children: vec![],
+        };
+
+        let mut arbol = Node {
+            keys: vec![4.into()],
+            children: vec![hoja1, hoja2],
+        };
+
+        assert!(arbol.insertar(3.into()).is_ok());
+        assert!(arbol.keys.len() == 2);
+        assert!(arbol.children.len() == 3);
     }
 }
