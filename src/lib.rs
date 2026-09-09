@@ -1,3 +1,5 @@
+use std::mem;
+
 #[derive(PartialEq, Eq, Debug)]
 struct KVPair<T> {
     key: i32,
@@ -87,11 +89,11 @@ impl<T> Node<T> {
     }
 
     fn split(mut self) -> (Node<T>, Node<T>) {
-        if self.es_hoja() {
-            assert!(self.keys.len() == 2);
-            let right_key = self.keys.pop().unwrap();
-            let left_key = self.keys.pop().unwrap();
+        assert!(self.keys.len() == 2);
+        let right_key = self.keys.pop().unwrap();
+        let left_key = self.keys.pop().unwrap();
 
+        if self.es_hoja() {
             let left = Node {
                 keys: vec![left_key],
                 children: vec![],
@@ -104,7 +106,56 @@ impl<T> Node<T> {
             return (left, right);
         }
 
-        todo!()
+        assert!(self.children.len() == 4);
+
+        let right_children = self.children.split_off(3);
+
+        let left = Node {
+            keys: vec![left_key],
+            children: self.children,
+        };
+
+        let right = Node {
+            keys: vec![right_key],
+            children: right_children,
+        };
+        return (left, right);
+    }
+}
+
+struct ArbolB<T> {
+    root: Node<T>,
+}
+
+impl<T> ArbolB<T> {
+    fn new() -> Self {
+        Self {
+            root: Node {
+                keys: vec![],
+                children: vec![],
+            },
+        }
+    }
+
+    fn insertar(&mut self, kv: KVPair<T>) {
+        let promovida = match self.root.insertar(kv) {
+            Ok(_) => {
+                return;
+            }
+            Err(promovida) => promovida,
+        };
+
+        let new_root = Node {
+            keys: vec![promovida],
+            children: vec![],
+        };
+
+        let old_root = mem::replace(&mut self.root, new_root);
+
+        let (left, right) = old_root.split();
+
+        self.root.children.push(left);
+        self.root.children.push(right);
     }
 }
 
@@ -217,5 +268,61 @@ mod tests {
         assert!(arbol.insertar(3.into()).is_ok());
         assert!(arbol.keys.len() == 2);
         assert!(arbol.children.len() == 3);
+    }
+
+    #[test]
+    fn inserta_con_split_nodo_interno() {
+        let hoja1 = Node {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        let hoja2 = Node {
+            keys: vec![6.into()],
+            children: vec![],
+        };
+
+        let hoja3 = Node {
+            keys: vec![12.into()],
+            children: vec![],
+        };
+
+        let mut arbol = Node {
+            keys: vec![4.into(), 10.into()],
+            children: vec![hoja1, hoja2, hoja3],
+        };
+
+        assert_eq!(arbol.insertar(3.into()), Err(4.into()));
+        assert!(arbol.keys.len() == 2);
+        assert!(arbol.children.len() == 4);
+    }
+
+    #[test]
+    fn inserta_en_arbol_con_split_nodo_interno() {
+        let hoja1 = Node {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        let hoja2 = Node {
+            keys: vec![6.into()],
+            children: vec![],
+        };
+
+        let hoja3 = Node {
+            keys: vec![12.into()],
+            children: vec![],
+        };
+
+        let mut arbol = ArbolB {
+            root: Node {
+                keys: vec![4.into(), 10.into()],
+                children: vec![hoja1, hoja2, hoja3],
+            },
+        };
+
+        arbol.insertar(3.into());
+        assert!(arbol.root.keys.len() == 1);
+        assert!(arbol.root.children.len() == 2);
     }
 }
