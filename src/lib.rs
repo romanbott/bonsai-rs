@@ -201,6 +201,24 @@ impl<T: Clone, const M: usize> Node<T, M> {
     }
 
     fn rebalancea(&mut self, pos: usize, kv: KVPair<T>) -> Result<KVPair<T>, ElimError<T>> {
+        if (pos > 0) && (self.children[pos - 1].keys.len() > Self::Q) {
+            let key_from_sibling = self.children[pos - 1].keys.pop().unwrap();
+
+            let parent = mem::replace(&mut self.keys[pos - 1], key_from_sibling);
+
+            self.children.get_mut(pos).unwrap().keys.insert(0, parent);
+
+            if let Some(node_from_sibling) = self.children[pos - 1].children.pop() {
+                self.children
+                    .get_mut(pos)
+                    .unwrap()
+                    .children
+                    .insert(0, node_from_sibling);
+            };
+
+            return Ok(kv);
+        }
+
         unimplemented!("rebalancea: reparación de underflow pendiente")
     }
 }
