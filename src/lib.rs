@@ -1,8 +1,8 @@
 use std::fmt;
 use std::mem;
 
-#[derive(PartialEq, Eq, Debug)]
-struct KVPair<T> {
+#[derive(PartialEq, Eq, Debug, Clone)]
+struct KVPair<T: Clone> {
     key: i32,
     value: T,
 }
@@ -16,18 +16,20 @@ impl From<i32> for KVPair<()> {
     }
 }
 
-impl<T: fmt::Display> fmt::Display for KVPair<T> {
+impl<T: fmt::Display + Clone> fmt::Display for KVPair<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.key, self.value)
     }
 }
 
-struct Node<T, const M: usize = 3> {
+struct Node<T: Clone, const M: usize = 3> {
     keys: Vec<KVPair<T>>,
     children: Vec<Node<T, M>>,
 }
 
-impl<T, const M: usize> Node<T, M> {
+impl<T: Clone, const M: usize> Node<T, M> {
+    const Q: usize = (M + 1) / 2 - 1;
+
     fn key_pos(&self, key: i32) -> usize {
         self.keys
             .iter()
@@ -133,7 +135,7 @@ impl<T, const M: usize> Node<T, M> {
     fn elimina(&mut self, key: i32) {}
 }
 
-impl<T: fmt::Display, const M: usize> Node<T, M> {
+impl<T: fmt::Display + Clone, const M: usize> Node<T, M> {
     fn cabecera(&self) -> String {
         let ks = self
             .keys
@@ -182,11 +184,11 @@ impl<T: fmt::Display, const M: usize> Node<T, M> {
     }
 }
 
-struct ArbolB<T, const M: usize = 3> {
+struct ArbolB<T: Clone, const M: usize = 3> {
     root: Node<T, M>,
 }
 
-impl<T: fmt::Display, const M: usize> ArbolB<T, M> {
+impl<T: fmt::Display + Clone, const M: usize> ArbolB<T, M> {
     fn a_cadena(&self) -> String {
         let mut buf = format!("{}\n", self.root.cabecera());
         self.root.imprime_hijos(&mut buf, "");
@@ -198,7 +200,7 @@ impl<T: fmt::Display, const M: usize> ArbolB<T, M> {
     }
 }
 
-impl<T, const M: usize> ArbolB<T, M> {
+impl<T: Clone, const M: usize> ArbolB<T, M> {
     fn new() -> Self {
         assert!(M >= 3);
         Self {
@@ -231,7 +233,7 @@ impl<T, const M: usize> ArbolB<T, M> {
     }
 
     fn es_valido(&self) -> bool {
-        fn check<T, const M: usize>(nodo: &Node<T, M>) -> bool {
+        fn check<T: Clone, const M: usize>(nodo: &Node<T, M>) -> bool {
             if !nodo.es_hoja() && nodo.children.len() != nodo.keys.len() + 1 {
                 return false;
             }
@@ -241,7 +243,7 @@ impl<T, const M: usize> ArbolB<T, M> {
     }
 
     fn hojas_balanceadas(&self) -> bool {
-        fn profundidades<T, const M: usize>(nodo: &Node<T, M>, prof: usize) -> Vec<usize> {
+        fn profundidades<T: Clone, const M: usize>(nodo: &Node<T, M>, prof: usize) -> Vec<usize> {
             if nodo.es_hoja() {
                 vec![prof]
             } else {
