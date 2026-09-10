@@ -634,4 +634,96 @@ mod tests {
         insertar_y_verificar::<5>(60);
         insertar_y_verificar::<6>(60);
     }
+
+    #[test]
+    fn elimina_de_hoja_sin_underflow() {
+        let mut hoja = Nodo {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        assert_eq!(hoja.elimina(1), Ok(1.into()));
+        assert_eq!(hoja.keys, vec![2.into()]);
+    }
+
+    #[test]
+    fn elimina_de_hoja_retorna_underflow() {
+        let mut hoja = Nodo {
+            keys: vec![1.into()],
+            children: vec![],
+        };
+
+        assert_eq!(hoja.elimina(1), Err(ElimError::Underflow(1.into())));
+        assert!(hoja.keys.is_empty());
+    }
+
+    #[test]
+    fn elimina_no_encontrada() {
+        let mut hoja = Nodo {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+
+        assert_eq!(hoja.elimina(5), Err(ElimError::NoEncontrada));
+        assert_eq!(hoja.keys, vec![1.into(), 2.into()]);
+    }
+
+    #[test]
+    fn elimina_de_nodo_interno() {
+        let hoja1 = Nodo {
+            keys: vec![1.into(), 2.into()],
+            children: vec![],
+        };
+        let hoja2 = Nodo {
+            keys: vec![6.into()],
+            children: vec![],
+        };
+
+        let mut arbol = Nodo {
+            keys: vec![4.into()],
+            children: vec![hoja1, hoja2],
+        };
+
+        assert_eq!(arbol.elimina(4), Ok(4.into()));
+        assert_eq!(arbol.keys, vec![2.into()]);
+        assert_eq!(arbol.children[0].keys, vec![1.into()]);
+        assert_eq!(arbol.children[1].keys, vec![6.into()]);
+    }
+
+    #[test]
+    fn elimina_desde_arbol() {
+        let mut arbol = Arbol3::new();
+        arbol.insertar(KVPair { key: 1, value: 'x' });
+        arbol.insertar(KVPair { key: 2, value: 'x' });
+
+        assert_eq!(arbol.elimina(99), None);
+
+        assert_eq!(arbol.elimina(1), Some(KVPair { key: 1, value: 'x' }));
+        assert!(arbol.busca(1).is_none());
+        assert!(arbol.busca(2).is_some());
+
+        assert_eq!(arbol.elimina(2), Some(KVPair { key: 2, value: 'x' }));
+        assert!(arbol.busca(2).is_none());
+        assert!(arbol.es_valido());
+    }
+
+    #[test]
+    #[should_panic(expected = "rebalancea")]
+    fn underflow_aun_no_implementado() {
+        let mut arbol = Nodo {
+            keys: vec![4.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![1.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![6.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        arbol.elimina(1);
+    }
 }
