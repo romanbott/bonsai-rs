@@ -132,7 +132,52 @@ impl<T: Clone, const M: usize> Node<T, M> {
         return (left, right);
     }
 
-    fn elimina(&mut self, key: i32) {}
+    fn min(&self) -> &KVPair<T> {
+        if self.children.len() == 0 {
+            self.keys.first().unwrap()
+        } else {
+            self.children.first().unwrap().min()
+        }
+    }
+
+    fn max(&self) -> &KVPair<T> {
+        if self.children.len() == 0 {
+            self.keys.last().unwrap()
+        } else {
+            self.children.last().unwrap().max()
+        }
+    }
+
+    fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
+        if self.es_hoja() {
+            if let Some(index) = self.keys.iter().position(|kv| kv.key == key) {
+                if self.children.len() > Self::Q {
+                    return Some(self.keys.remove(index));
+                } else {
+                    // manejar caso en que hay underflow
+                }
+            } else {
+                // caso en que no se encuentra la llave que se quiere eliminar
+                return None;
+            }
+        }
+
+        // Manejar caso en que no es hoja
+
+        // Subcaso en que se encuentra la llave
+        if let Some(index) = self.keys.iter().position(|kv| kv.key == key) {
+            if self.children[index].keys.len() > Self::Q {
+                let predecesor: &KVPair<T> = self.children.get(index).unwrap().max();
+
+                let eliminada = mem::replace(&mut self.keys[index], predecesor.clone());
+
+                self.children[index].elimina(predecesor.key)
+            }
+        }
+
+        let pos = self.key_pos(key);
+        self.children[pos].elimina(key)
+    }
 }
 
 impl<T: fmt::Display + Clone, const M: usize> Node<T, M> {
