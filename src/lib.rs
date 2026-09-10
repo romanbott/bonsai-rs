@@ -201,6 +201,8 @@ impl<T: Clone, const M: usize> Node<T, M> {
     }
 
     fn rebalancea(&mut self, pos: usize, kv: KVPair<T>) -> Result<KVPair<T>, ElimError<T>> {
+        debug_assert!(self.children[pos].keys.len() == Self::Q - 1);
+
         if (pos > 0) && (self.children[pos - 1].keys.len() > Self::Q) {
             let key_from_sibling = self.children[pos - 1].keys.pop().unwrap();
 
@@ -215,6 +217,12 @@ impl<T: Clone, const M: usize> Node<T, M> {
                     .children
                     .insert(0, node_from_sibling);
             }
+
+            debug_assert!(self.children[pos].keys.len() == Self::Q);
+            debug_assert!(
+                self.children[pos].es_hoja()
+                    || self.children[pos].children.len() == self.children[pos].keys.len() + 1
+            );
 
             return Ok(kv);
         }
@@ -236,18 +244,33 @@ impl<T: Clone, const M: usize> Node<T, M> {
                     .push(node_from_sibling);
             }
 
+            debug_assert!(self.children[pos].keys.len() == Self::Q);
+            debug_assert!(
+                self.children[pos].es_hoja()
+                    || self.children[pos].children.len() == self.children[pos].keys.len() + 1
+            );
+
             return Ok(kv);
         }
 
-        if (pos > 0) {
-            let parent = self.keys.remove(pos - 1);
+        let izq = pos.saturating_sub(1);
+        let der = izq + 1;
 
-            let Node { keys, children } = self.children.remove(pos);
+        if der < self.children.len() {
+            let separador = self.keys.remove(izq);
 
-            self.children[pos - 1].keys.push(parent);
-            self.children[pos - 1].keys.extend(keys.into_iter());
+            let Node { keys, children } = self.children.remove(der);
 
-            self.children[pos - 1].children.extend(children.into_iter());
+            self.children[izq].keys.push(separador);
+            self.children[izq].keys.extend(keys.into_iter());
+
+            self.children[izq].children.extend(children.into_iter());
+
+            debug_assert!(self.children[izq].keys.len() <= M - 1);
+            debug_assert!(
+                self.children[izq].es_hoja()
+                    || self.children[izq].children.len() == self.children[izq].keys.len() + 1
+            );
 
             if self.keys.len() < Self::Q {
                 return Err(ElimError::Underflow(kv));
@@ -256,7 +279,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
             }
         }
 
-        unimplemented!("rebalancea: reparación de underflow pendiente")
+        unreachable!("rebalancea: no hay hermano para reparar el underflow")
     }
 }
 
@@ -321,7 +344,7 @@ struct ArbolB<T: Clone, const M: usize = 3> {
     root: Node<T, M>,
 }
 
-type MapaB = ArbolB<()>;
+type ConjuntoB = ArbolB<()>;
 
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -782,23 +805,56 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "rebalancea")]
-    fn underflow_aun_no_implementado() {
-        let mut arbol = Nodo {
-            keys: vec![4.into()],
-            children: vec![
-                Nodo {
-                    keys: vec![1.into()],
-                    children: vec![],
-                },
-                Nodo {
-                    keys: vec![6.into()],
-                    children: vec![],
-                },
-            ],
-        };
+    fn elimina_secuencia_mantiene_invariantes() {
+        let mut arbol = Arbol3::new();
 
-        let _ = arbol.elimina(1);
+        for k in 0..=20 {
+            arbol.insertar(k, 'x');
+        }
+
+        for k in 0..=20 {
+            arbol.elimina(k);
+            assert!(arbol.busca(k).is_none(), "llave {k} sigue presente");
+            assert!(arbol.es_valido(), "invariante violada tras eliminar {k}");
+            assert!(
+                arbol.hojas_balanceadas(),
+                "hojas desbalanceadas tras eliminar {k}"
+            );
+        }
+
+        assert!(arbol.es_valido());
+        assert!(arbol.hojas_balanceadas());
+    }
+
+    fn eliminar_y_verificar<const M: usize>(n: i32) {
+        let mut arbol = ArbolB::<char, M>::new();
+
+        for k in 0..=n {
+            arbol.insertar(k, 'x');
+        }
+
+        for k in 0..=n {
+            arbol.elimina(k);
+            assert!(arbol.busca(k).is_none(), "M={M}: llave {k} sigue presente");
+            assert!(
+                arbol.es_valido(),
+                "M={M}: invariante violada tras eliminar {k}"
+            );
+            assert!(
+                arbol.hojas_balanceadas(),
+                "M={M}: hojas desbalanceadas tras eliminar {k}"
+            );
+        }
+
+        assert!(arbol.es_valido());
+        assert!(arbol.hojas_balanceadas());
+    }
+
+    #[test]
+    fn elimina_con_distintos_m() {
+        eliminar_y_verificar::<3>(30);
+        eliminar_y_verificar::<4>(60);
+        eliminar_y_verificar::<5>(60);
     }
 
     #[test]
@@ -865,30 +921,16 @@ mod tests {
                     ],
                 },
                 Nodo {
-                    keys: vec![25.into()],
-                    children: vec![
-                        Nodo {
-                            keys: vec![22.into()],
-                            children: vec![],
-                        },
-                        Nodo {
-                            keys: vec![28.into()],
-                            children: vec![],
-                        },
-                    ],
+                    keys: vec![],
+                    children: vec![Nodo {
+                        keys: vec![22.into()],
+                        children: vec![],
+                    }],
                 },
             ],
         };
 
-        let mut buf = String::new();
-        arbol.imprime_hijos(&mut buf, "");
-        print!("{buf}");
-
         let res = arbol.rebalancea(1, 25.into());
-
-        let mut buf = String::new();
-        arbol.imprime_hijos(&mut buf, "");
-        print!("{buf}");
 
         assert_eq!(res, Ok(25.into()));
 
@@ -897,8 +939,8 @@ mod tests {
         assert_eq!(arbol.children[0].keys, vec![8.into()]);
         assert_eq!(arbol.children[0].children.len(), 2);
 
-        assert_eq!(arbol.children[1].keys, vec![20.into(), 25.into()]);
-        assert_eq!(arbol.children[1].children.len(), 3);
+        assert_eq!(arbol.children[1].keys, vec![20.into()]);
+        assert_eq!(arbol.children[1].children.len(), 2);
         assert_eq!(arbol.children[1].children[0].keys, vec![18.into()]);
     }
 
@@ -932,17 +974,11 @@ mod tests {
             keys: vec![20.into()],
             children: vec![
                 Nodo {
-                    keys: vec![5.into()],
-                    children: vec![
-                        Nodo {
-                            keys: vec![1.into()],
-                            children: vec![],
-                        },
-                        Nodo {
-                            keys: vec![10.into()],
-                            children: vec![],
-                        },
-                    ],
+                    keys: vec![],
+                    children: vec![Nodo {
+                        keys: vec![10.into()],
+                        children: vec![],
+                    }],
                 },
                 Nodo {
                     keys: vec![30.into(), 40.into()],
@@ -969,11 +1005,133 @@ mod tests {
 
         assert_eq!(arbol.keys, vec![30.into()]);
 
-        assert_eq!(arbol.children[0].keys, vec![5.into(), 20.into()]);
-        assert_eq!(arbol.children[0].children.len(), 3);
-        assert_eq!(arbol.children[0].children[2].keys, vec![25.into()]);
+        assert_eq!(arbol.children[0].keys, vec![20.into()]);
+        assert_eq!(arbol.children[0].children.len(), 2);
+        assert_eq!(arbol.children[0].children[1].keys, vec![25.into()]);
 
         assert_eq!(arbol.children[1].keys, vec![40.into()]);
         assert_eq!(arbol.children[1].children.len(), 2);
+    }
+
+    #[test]
+    fn rebalancea_fusion_izquierda() {
+        let mut arbol = Nodo {
+            keys: vec![10.into(), 30.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![5.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![20.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![40.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        let res = arbol.elimina(20);
+        assert_eq!(res, Ok(20.into()));
+
+        assert_eq!(arbol.keys, vec![30.into()]);
+        assert_eq!(arbol.children.len(), 2);
+        assert_eq!(arbol.children[0].keys, vec![5.into(), 10.into()]);
+        assert_eq!(arbol.children[1].keys, vec![40.into()]);
+    }
+
+    #[test]
+    fn rebalancea_fusion_derecha() {
+        let mut arbol = Nodo {
+            keys: vec![10.into(), 30.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![1.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![20.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![40.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        let res = arbol.elimina(1);
+        assert_eq!(res, Ok(1.into()));
+
+        assert_eq!(arbol.keys, vec![30.into()]);
+        assert_eq!(arbol.children.len(), 2);
+        assert_eq!(arbol.children[0].keys, vec![10.into(), 20.into()]);
+        assert_eq!(arbol.children[1].keys, vec![40.into()]);
+    }
+
+    #[test]
+    fn rebalancea_fusion_propaga_underflow() {
+        let mut arbol = Nodo {
+            keys: vec![10.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![1.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![20.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        let res = arbol.elimina(1);
+        assert_eq!(res, Err(ElimError::Underflow(1.into())));
+
+        assert!(arbol.keys.is_empty());
+        assert_eq!(arbol.children.len(), 1);
+        assert_eq!(arbol.children[0].keys, vec![10.into(), 20.into()]);
+    }
+
+    #[test]
+    fn rebalancea_fusion_derecha_nodos_internos() {
+        let mut arbol = Nodo {
+            keys: vec![20.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![],
+                    children: vec![Nodo {
+                        keys: vec![10.into()],
+                        children: vec![],
+                    }],
+                },
+                Nodo {
+                    keys: vec![30.into()],
+                    children: vec![
+                        Nodo {
+                            keys: vec![25.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![35.into()],
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let res = arbol.rebalancea(0, 5.into());
+        assert_eq!(res, Err(ElimError::Underflow(5.into())));
+
+        assert!(arbol.keys.is_empty());
+        assert_eq!(arbol.children.len(), 1);
+
+        let fusionado = &arbol.children[0];
+        assert_eq!(fusionado.keys, vec![20.into(), 30.into()]);
+        assert_eq!(fusionado.children.len(), 3);
+        assert_eq!(fusionado.children[0].keys, vec![10.into()]);
     }
 }
