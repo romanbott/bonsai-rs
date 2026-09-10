@@ -239,6 +239,23 @@ impl<T: Clone, const M: usize> Node<T, M> {
             return Ok(kv);
         }
 
+        if (pos > 0) {
+            let parent = self.keys.remove(pos - 1);
+
+            let Node { keys, children } = self.children.remove(pos);
+
+            self.children[pos - 1].keys.push(parent);
+            self.children[pos - 1].keys.extend(keys.into_iter());
+
+            self.children[pos - 1].children.extend(children.into_iter());
+
+            if self.keys.len() < Self::Q {
+                return Err(ElimError::Underflow(kv));
+            } else {
+                return Ok(kv);
+            }
+        }
+
         unimplemented!("rebalancea: reparación de underflow pendiente")
     }
 }
