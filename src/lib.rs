@@ -9,7 +9,10 @@ struct KVPair<T: Clone> {
 
 impl From<i32> for KVPair<()> {
     fn from(value: i32) -> Self {
-        KVPair { key: value, value: () }
+        KVPair {
+            key: value,
+            value: (),
+        }
     }
 }
 
@@ -840,7 +843,16 @@ mod tests {
             ],
         };
 
+        let mut buf = String::new();
+        arbol.imprime_hijos(&mut buf, "");
+        print!("{buf}");
+
         let res = arbol.rebalancea(1, 25.into());
+
+        let mut buf = String::new();
+        arbol.imprime_hijos(&mut buf, "");
+        print!("{buf}");
+
         assert_eq!(res, Ok(25.into()));
 
         assert_eq!(arbol.keys, vec![15.into()]);
