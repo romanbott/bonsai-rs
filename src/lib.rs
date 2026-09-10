@@ -214,7 +214,27 @@ impl<T: Clone, const M: usize> Node<T, M> {
                     .unwrap()
                     .children
                     .insert(0, node_from_sibling);
-            };
+            }
+
+            return Ok(kv);
+        }
+
+        if (pos + 1 < self.children.len()) && (self.children[pos + 1].keys.len() > Self::Q) {
+            let key_from_sibling = self.children[pos + 1].keys.remove(0);
+
+            let parent = mem::replace(&mut self.keys[pos], key_from_sibling);
+
+            self.children.get_mut(pos).unwrap().keys.push(parent);
+
+            if !self.children[pos + 1].children.is_empty() {
+                let node_from_sibling = self.children[pos + 1].children.remove(0);
+
+                self.children
+                    .get_mut(pos)
+                    .unwrap()
+                    .children
+                    .push(node_from_sibling);
+            }
 
             return Ok(kv);
         }
@@ -863,5 +883,80 @@ mod tests {
         assert_eq!(arbol.children[1].keys, vec![20.into(), 25.into()]);
         assert_eq!(arbol.children[1].children.len(), 3);
         assert_eq!(arbol.children[1].children[0].keys, vec![18.into()]);
+    }
+
+    #[test]
+    fn rebalancea_prestamo_derecho_hojas() {
+        let mut arbol = Nodo {
+            keys: vec![10.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![1.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![20.into(), 25.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        let res = arbol.elimina(1);
+        assert_eq!(res, Ok(1.into()));
+
+        assert_eq!(arbol.keys, vec![20.into()]);
+        assert_eq!(arbol.children[0].keys, vec![10.into()]);
+        assert_eq!(arbol.children[1].keys, vec![25.into()]);
+    }
+
+    #[test]
+    fn rebalancea_prestamo_derecho_nodos_internos() {
+        let mut arbol = Nodo {
+            keys: vec![20.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![5.into()],
+                    children: vec![
+                        Nodo {
+                            keys: vec![1.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![10.into()],
+                            children: vec![],
+                        },
+                    ],
+                },
+                Nodo {
+                    keys: vec![30.into(), 40.into()],
+                    children: vec![
+                        Nodo {
+                            keys: vec![25.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![35.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![45.into()],
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let res = arbol.rebalancea(0, 5.into());
+        assert_eq!(res, Ok(5.into()));
+
+        assert_eq!(arbol.keys, vec![30.into()]);
+
+        assert_eq!(arbol.children[0].keys, vec![5.into(), 20.into()]);
+        assert_eq!(arbol.children[0].children.len(), 3);
+        assert_eq!(arbol.children[0].children[2].keys, vec![25.into()]);
+
+        assert_eq!(arbol.children[1].keys, vec![40.into()]);
+        assert_eq!(arbol.children[1].children.len(), 2);
     }
 }
