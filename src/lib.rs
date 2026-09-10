@@ -22,6 +22,12 @@ impl<T: fmt::Display + Clone> fmt::Display for KVPair<T> {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
+enum ElimError<T: Clone> {
+    NoEncontrada,
+    Underflow(KVPair<T>),
+}
+
 struct Node<T: Clone, const M: usize = 3> {
     keys: Vec<KVPair<T>>,
     children: Vec<Node<T, M>>,
@@ -148,35 +154,54 @@ impl<T: Clone, const M: usize> Node<T, M> {
         }
     }
 
-    fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
+    fn elimina(&mut self, key: i32) -> Result<KVPair<T>, ElimError<T>> {
+        // Caso base: nodo hoja
         if self.es_hoja() {
-            if let Some(index) = self.keys.iter().position(|kv| kv.key == key) {
-                if self.children.len() > Self::Q {
-                    return Some(self.keys.remove(index));
-                } else {
-                    // manejar caso en que hay underflow
+            return match self.keys.iter().position(|kv| kv.key == key) {
+                // La llave no existe en el árbol
+                None => Err(ElimError::NoEncontrada),
+                Some(i) => {
+                    let kv = self.keys.remove(i);
+
+                    // Si el nodo quedó por debajo del mínimo de llaves, avisar al caller
+                    if self.keys.len() < Self::Q {
+                        Err(ElimError::Underflow(kv))
+                    } else {
+                        Ok(kv)
+                    }
                 }
-            } else {
-                // caso en que no se encuentra la llave que se quiere eliminar
-                return None;
-            }
+            };
         }
 
-        // Manejar caso en que no es hoja
+        // Nodo interno: la llave a eliminar está en este nodo
+        if let Some(i) = self.keys.iter().position(|kv| kv.key == key) {
+            // Reemplazar la llave por su predecesor (máximo del subárbol izquierdo)
+            let predecesor = self.children[i].max().clone();
+            let pk = predecesor.key;
+            let eliminada = mem::replace(&mut self.keys[i], predecesor);
 
-        // Subcaso en que se encuentra la llave
-        if let Some(index) = self.keys.iter().position(|kv| kv.key == key) {
-            if self.children[index].keys.len() > Self::Q {
-                let predecesor: &KVPair<T> = self.children.get(index).unwrap().max();
-
-                let eliminada = mem::replace(&mut self.keys[index], predecesor.clone());
-
-                self.children[index].elimina(predecesor.key)
-            }
+            // Eliminar el predecesor (ahora duplicado) del subárbol izquierdo
+            return match self.children[i].elimina(pk) {
+                // Si el hijo quedó bajo el mínimo, el caller debe rebalancearlo
+                Err(ElimError::Underflow(_)) => self.rebalancea(i, eliminada),
+                // El resto de los casos no altera este nodo: ya se hizo el reemplazo
+                _ => Ok(eliminada),
+            };
         }
 
+        // Nodo interno: la llave no está, bajar por el hijo que la contiene
         let pos = self.key_pos(key);
-        self.children[pos].elimina(key)
+
+        match self.children[pos].elimina(key) {
+            // Si el hijo quedó bajo el mínimo, el caller debe rebalancearlo
+            Err(ElimError::Underflow(kv)) => self.rebalancea(pos, kv),
+            // Propagar el resultado tal cual (encontrada/eliminada o no encontrada)
+            otro => otro,
+        }
+    }
+
+    fn rebalancea(&mut self, pos: usize, kv: KVPair<T>) -> Result<KVPair<T>, ElimError<T>> {
+        unimplemented!("rebalancea: reparación de underflow pendiente")
     }
 }
 
@@ -304,6 +329,19 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
 
     fn busca(&self, key: i32) -> Option<&KVPair<T>> {
         self.root.busca(key)
+    }
+
+    fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
+        let kv = match self.root.elimina(key) {
+            Err(ElimError::NoEncontrada) => return None,
+            Ok(kv) | Err(ElimError::Underflow(kv)) => kv,
+        };
+
+        if self.root.keys.is_empty() && self.root.children.len() == 1 {
+            self.root = self.root.children.remove(0);
+        }
+
+        Some(kv)
     }
 }
 
