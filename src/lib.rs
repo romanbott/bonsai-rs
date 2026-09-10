@@ -1,7 +1,7 @@
 use std::fmt;
 use std::mem;
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 struct KVPair<T: Clone> {
     key: i32,
     value: T,
@@ -9,16 +9,13 @@ struct KVPair<T: Clone> {
 
 impl From<i32> for KVPair<()> {
     fn from(value: i32) -> Self {
-        KVPair {
-            key: value,
-            value: (),
-        }
+        KVPair { key: value, value: () }
     }
 }
 
-impl<T: fmt::Display + Clone> fmt::Display for KVPair<T> {
+impl<T: fmt::Debug + Clone> fmt::Debug for KVPair<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.key, self.value)
+        write!(f, "{}: {:?}", self.key, self.value)
     }
 }
 
@@ -223,12 +220,12 @@ impl<T: Clone, const M: usize> Node<T, M> {
     }
 }
 
-impl<T: fmt::Display + Clone, const M: usize> Node<T, M> {
+impl<T: fmt::Debug + Clone, const M: usize> Node<T, M> {
     fn cabecera(&self) -> String {
         let ks = self
             .keys
             .iter()
-            .map(|kv| kv.to_string())
+            .map(|kv| format!("{kv:?}"))
             .collect::<Vec<_>>()
             .join(", ");
         format!("[{ks}]")
@@ -272,19 +269,33 @@ impl<T: fmt::Display + Clone, const M: usize> Node<T, M> {
     }
 }
 
+impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for Node<T, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buf = format!("{}\n", self.cabecera());
+        self.imprime_hijos(&mut buf, "");
+        write!(f, "{}", buf.trim_end())
+    }
+}
+
 struct ArbolB<T: Clone, const M: usize = 3> {
     root: Node<T, M>,
 }
 
-impl<T: fmt::Display + Clone, const M: usize> ArbolB<T, M> {
+type MapaB = ArbolB<()>;
+
+impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.root)
+    }
+}
+
+impl<T: fmt::Debug + Clone, const M: usize> ArbolB<T, M> {
     fn a_cadena(&self) -> String {
-        let mut buf = format!("{}\n", self.root.cabecera());
-        self.root.imprime_hijos(&mut buf, "");
-        buf
+        format!("{:?}", self)
     }
 
     fn imprime(&self) {
-        print!("{}", self.a_cadena());
+        println!("{:?}", self);
     }
 }
 
@@ -299,7 +310,12 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         }
     }
 
-    fn insertar(&mut self, kv: KVPair<T>) {
+    fn insertar(&mut self, clave: i32, valor: T) {
+        let kv = KVPair {
+            key: clave,
+            value: valor,
+        };
+
         let promovida = match self.root.insertar(kv) {
             Ok(_) => {
                 return;
@@ -528,7 +544,7 @@ mod tests {
             },
         };
 
-        arbol.insertar(3.into());
+        arbol.insertar(3, ());
         assert!(arbol.root.keys.len() == 1);
         assert!(arbol.root.children.len() == 2);
     }
@@ -566,12 +582,12 @@ mod tests {
         };
 
         let esperado = concat!(
-            "[10: A, 30: B]\n",
-            "├── (<10)     [5: a]\n",
-            "├── (10..30)  [20: b]\n",
-            "│   ├── (<20)     [15: c]\n",
-            "│   └── (>20)     [25: d]\n",
-            "└── (>30)     [40: e]\n",
+            "[10: 'A', 30: 'B']\n",
+            "├── (<10)     [5: 'a']\n",
+            "├── (10..30)  [20: 'b']\n",
+            "│   ├── (<20)     [15: 'c']\n",
+            "│   └── (>20)     [25: 'd']\n",
+            "└── (>30)     [40: 'e']",
         );
 
         assert_eq!(arbol.a_cadena(), esperado);
@@ -582,7 +598,7 @@ mod tests {
         let mut arbol = Arbol3::new();
 
         for k in [5, 3, 8, 1, 4, 7, 9, 2, 6, 0] {
-            arbol.insertar(KVPair { key: k, value: 'x' });
+            arbol.insertar(k, 'x');
             arbol.imprime();
         }
     }
@@ -592,7 +608,7 @@ mod tests {
         let mut arbol = Arbol3::new();
 
         for k in 0..=30 {
-            arbol.insertar(KVPair { key: k, value: 'x' });
+            arbol.insertar(k, 'x');
         }
 
         for k in 0..=30 {
@@ -608,7 +624,7 @@ mod tests {
         let mut arbol = ArbolB::<char, 4>::new();
 
         for k in [1, 2, 3, 4] {
-            arbol.insertar(KVPair { key: k, value: 'x' });
+            arbol.insertar(k, 'x');
         }
 
         assert_eq!(arbol.root.keys.len(), 1);
@@ -628,7 +644,7 @@ mod tests {
         let mut arbol = ArbolB::<char, M>::new();
 
         for k in 0..=n {
-            arbol.insertar(KVPair { key: k, value: 'x' });
+            arbol.insertar(k, 'x');
         }
 
         for k in 0..=n {
@@ -711,8 +727,8 @@ mod tests {
     #[test]
     fn elimina_desde_arbol() {
         let mut arbol = Arbol3::new();
-        arbol.insertar(KVPair { key: 1, value: 'x' });
-        arbol.insertar(KVPair { key: 2, value: 'x' });
+        arbol.insertar(1, 'x');
+        arbol.insertar(2, 'x');
 
         assert_eq!(arbol.elimina(99), None);
 
@@ -742,6 +758,98 @@ mod tests {
             ],
         };
 
-        arbol.elimina(1);
+        let _ = arbol.elimina(1);
+    }
+
+    #[test]
+    fn imprime_arbol_con_valor_unitario() {
+        let mut arbol = ArbolB::<(), 4>::new();
+
+        for k in [2, 1, 3, 4] {
+            arbol.insertar(k, ());
+        }
+
+        let esperado = concat!(
+            "[3: ()]\n",
+            "├── (<3)      [1: (), 2: ()]\n",
+            "└── (>3)      [4: ()]",
+        );
+
+        assert_eq!(arbol.a_cadena(), esperado);
+    }
+
+    #[test]
+    fn rebalancea_prestamo_izquierdo_hojas() {
+        let mut arbol = Nodo {
+            keys: vec![10.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![1.into(), 5.into()],
+                    children: vec![],
+                },
+                Nodo {
+                    keys: vec![15.into()],
+                    children: vec![],
+                },
+            ],
+        };
+
+        let res = arbol.elimina(15);
+        assert_eq!(res, Ok(15.into()));
+
+        assert_eq!(arbol.keys, vec![5.into()]);
+        assert_eq!(arbol.children[0].keys, vec![1.into()]);
+        assert_eq!(arbol.children[1].keys, vec![10.into()]);
+    }
+
+    #[test]
+    fn rebalancea_prestamo_izquierdo_nodos_internos() {
+        let mut arbol = Nodo {
+            keys: vec![20.into()],
+            children: vec![
+                Nodo {
+                    keys: vec![8.into(), 15.into()],
+                    children: vec![
+                        Nodo {
+                            keys: vec![5.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![10.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![18.into()],
+                            children: vec![],
+                        },
+                    ],
+                },
+                Nodo {
+                    keys: vec![25.into()],
+                    children: vec![
+                        Nodo {
+                            keys: vec![22.into()],
+                            children: vec![],
+                        },
+                        Nodo {
+                            keys: vec![28.into()],
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+
+        let res = arbol.rebalancea(1, 25.into());
+        assert_eq!(res, Ok(25.into()));
+
+        assert_eq!(arbol.keys, vec![15.into()]);
+
+        assert_eq!(arbol.children[0].keys, vec![8.into()]);
+        assert_eq!(arbol.children[0].children.len(), 2);
+
+        assert_eq!(arbol.children[1].keys, vec![20.into(), 25.into()]);
+        assert_eq!(arbol.children[1].children.len(), 3);
+        assert_eq!(arbol.children[1].children[0].keys, vec![18.into()]);
     }
 }
