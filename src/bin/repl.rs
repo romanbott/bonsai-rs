@@ -6,6 +6,7 @@ trait ArbolDyn {
     fn elimina(&mut self, k: i32) -> Option<KVPair<()>>;
     fn busca(&self, k: i32) -> bool;
     fn a_cadena(&self) -> String;
+    fn verificar(&self) -> String;
 }
 
 impl<const M: usize> ArbolDyn for ArbolB<(), M> {
@@ -23,6 +24,10 @@ impl<const M: usize> ArbolDyn for ArbolB<(), M> {
 
     fn a_cadena(&self) -> String {
         self.a_cadena_claves()
+    }
+
+    fn verificar(&self) -> String {
+        self.verificar()
     }
 }
 
@@ -69,7 +74,7 @@ fn main() {
     };
 
     println!("Árbol B de orden {orden} creado.");
-    println!("Comandos: insertar <llave> | eliminar <llave> | buscar <llave> | exit");
+    println!("Comandos: insertar <llave> | eliminar <llave> | buscar <llave> | verificar | exit");
     println!("{}", arbol.a_cadena());
 
     loop {
@@ -93,6 +98,7 @@ fn main() {
             "insertar" => cmd_insertar(&mut *arbol, args),
             "eliminar" => cmd_eliminar(&mut *arbol, args),
             "buscar" => cmd_buscar(&*arbol, args),
+            "verificar" => cmd_verificar(&*arbol),
             "exit" => {
                 println!("Saliendo.");
                 break;
@@ -151,5 +157,9 @@ fn cmd_buscar(arbol: &dyn ArbolDyn, args: &[&str]) {
     } else {
         println!("Llave {key} no encontrada.");
     }
+}
+
+fn cmd_verificar(arbol: &dyn ArbolDyn) {
+    print!("{}", arbol.verificar());
 }
 

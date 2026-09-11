@@ -330,6 +330,41 @@ impl<T: Clone, const M: usize> Node<T, M> {
             hijo.imprime_hijos_con(buf, &pref, f);
         }
     }
+
+    fn verifica_nodo(&self, prof: usize, es_raiz: bool, buf: &mut String, hojas: &mut Vec<usize>) {
+        let (min_keys, max_keys) = if es_raiz {
+            (0, M - 1)
+        } else {
+            (Self::Q, M - 1)
+        };
+        let llaves_ok = self.keys.len() >= min_keys && self.keys.len() <= max_keys;
+        let hijos_ok = self.es_hoja() || self.children.len() == self.keys.len() + 1;
+
+        let cabecera = self.cabecera_con(&|kv| kv.key.to_string());
+        buf.push_str(&format!(
+            "{cabecera}: {} llaves, {} hijos",
+            self.keys.len(),
+            self.children.len()
+        ));
+        if !llaves_ok {
+            buf.push_str(&format!("  ✗ llaves fuera de [{min_keys}, {max_keys}]"));
+        }
+        if !hijos_ok {
+            buf.push_str("  [INCORRECTO] hijos != llaves + 1");
+        }
+        if llaves_ok && hijos_ok {
+            buf.push_str("  [CORRECTO]");
+        }
+        buf.push('\n');
+
+        if self.es_hoja() {
+            hojas.push(prof);
+        } else {
+            for hijo in &self.children {
+                hijo.verifica_nodo(prof + 1, false, buf, hojas);
+            }
+        }
+    }
 }
 
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for Node<T, M> {
@@ -443,8 +478,24 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
 
     pub fn a_cadena_claves(&self) -> String {
         let mut buf = format!("{}\n", self.root.cabecera_con(&|kv| kv.key.to_string()));
-        self.root.imprime_hijos_con(&mut buf, "", &|kv| kv.key.to_string());
+        self.root
+            .imprime_hijos_con(&mut buf, "", &|kv| kv.key.to_string());
         buf.trim_end().to_string()
+    }
+
+    pub fn verificar(&self) -> String {
+        let mut buf = String::new();
+        let mut hojas = Vec::new();
+        self.root.verifica_nodo(0, true, &mut buf, &mut hojas);
+
+        buf.push_str(&format!("Hojas a profundidad: {hojas:?}\n"));
+        let balanceadas = hojas.iter().all(|&p| p == hojas[0]);
+        buf.push_str(if balanceadas {
+            "Balanceado\n"
+        } else {
+            "DESBALANCEADO\n"
+        });
+        buf
     }
 }
 
@@ -1139,5 +1190,111 @@ mod tests {
         assert_eq!(fusionado.keys, vec![20.into(), 30.into()]);
         assert_eq!(fusionado.children.len(), 3);
         assert_eq!(fusionado.children[0].keys, vec![10.into()]);
+    }
+
+    #[test]
+    fn verificar_arbol_valido() {
+        let mut arbol = ArbolB::<(), 4>::new();
+
+        for k in [5, 3, 8, 1] {
+            arbol.insertar(k, ());
+        }
+
+        let esperado = concat!(
+            "[5]: 1 llaves, 2 hijos  [CORRECTO]\n",
+            "[1, 3]: 2 llaves, 0 hijos  [CORRECTO]\n",
+            "[8]: 1 llaves, 0 hijos  [CORRECTO]\n",
+            "Hojas a profundidad: [1, 1]\n",
+            "Balanceado\n",
+        );
+
+        assert_eq!(arbol.verificar(), esperado);
+    }
+
+    #[test]
+    fn verificar_falla_llaves_excesivas() {
+        let arbol = ArbolB {
+            root: Nodo {
+                keys: vec![1.into(), 2.into(), 3.into()],
+                children: vec![],
+            },
+        };
+
+        let reporte = arbol.verificar();
+        assert!(reporte.contains("llaves fuera de [0, 2]"));
+    }
+
+    #[test]
+    fn verificar_falla_llaves_insuficientes() {
+        let arbol = ArbolB {
+            root: Nodo {
+                keys: vec![5.into()],
+                children: vec![
+                    Nodo {
+                        keys: vec![],
+                        children: vec![],
+                    },
+                    Nodo {
+                        keys: vec![6.into()],
+                        children: vec![],
+                    },
+                ],
+            },
+        };
+
+        let reporte = arbol.verificar();
+        assert!(reporte.contains("llaves fuera de [1, 2]"));
+    }
+
+    #[test]
+    fn verificar_falla_hijos_incorrectos() {
+        let arbol = ArbolB {
+            root: Nodo {
+                keys: vec![5.into()],
+                children: vec![Nodo {
+                    keys: vec![1.into()],
+                    children: vec![],
+                }],
+            },
+        };
+
+        let reporte = arbol.verificar();
+        assert!(reporte.contains("hijos != llaves + 1"));
+    }
+
+    #[test]
+    fn verificar_falla_desbalanceado() {
+        let arbol = ArbolB {
+            root: Nodo {
+                keys: vec![10.into(), 30.into()],
+                children: vec![
+                    Nodo {
+                        keys: vec![5.into()],
+                        children: vec![],
+                    },
+                    Nodo {
+                        keys: vec![20.into()],
+                        children: vec![
+                            Nodo {
+                                keys: vec![15.into()],
+                                children: vec![],
+                            },
+                            Nodo {
+                                keys: vec![25.into()],
+                                children: vec![],
+                            },
+                        ],
+                    },
+                    Nodo {
+                        keys: vec![40.into()],
+                        children: vec![],
+                    },
+                ],
+            },
+        };
+
+        let reporte = arbol.verificar();
+        assert!(reporte.contains("Hojas a profundidad: [1, 2, 2, 1]"));
+        assert!(reporte.contains("DESBALANCEADO"));
     }
 }
