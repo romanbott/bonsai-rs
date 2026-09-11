@@ -2,7 +2,7 @@ use std::fmt;
 use std::mem;
 
 #[derive(PartialEq, Eq, Clone)]
-struct KVPair<T: Clone> {
+pub struct KVPair<T: Clone> {
     key: i32,
     value: T,
 }
@@ -283,17 +283,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
     }
 }
 
-impl<T: fmt::Debug + Clone, const M: usize> Node<T, M> {
-    fn cabecera(&self) -> String {
-        let ks = self
-            .keys
-            .iter()
-            .map(|kv| format!("{kv:?}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("[{ks}]")
-    }
-
+impl<T: Clone, const M: usize> Node<T, M> {
     fn hueco(&self, i: usize) -> (Option<i32>, Option<i32>) {
         let lo = if i > 0 {
             self.keys.get(i - 1).map(|kv| kv.key)
@@ -304,17 +294,27 @@ impl<T: fmt::Debug + Clone, const M: usize> Node<T, M> {
         (lo, hi)
     }
 
-    fn etiqueta_hijo(&self, lo: Option<i32>, hi: Option<i32>) -> String {
+    fn cabecera_con(&self, f: &dyn Fn(&KVPair<T>) -> String) -> String {
+        let ks = self.keys.iter().map(f).collect::<Vec<_>>().join(", ");
+        format!("[{ks}]")
+    }
+
+    fn etiqueta_hijo_con(
+        &self,
+        lo: Option<i32>,
+        hi: Option<i32>,
+        f: &dyn Fn(&KVPair<T>) -> String,
+    ) -> String {
         let rango = match (lo, hi) {
             (None, None) => String::new(),
             (None, Some(h)) => format!("(<{h})"),
             (Some(l), None) => format!("(>{l})"),
             (Some(l), Some(h)) => format!("({l}..{h})"),
         };
-        format!("{rango:<10}{}", self.cabecera())
+        format!("{rango:<10}{}", self.cabecera_con(f))
     }
 
-    fn imprime_hijos(&self, buf: &mut String, prefijo: &str) {
+    fn imprime_hijos_con(&self, buf: &mut String, prefijo: &str, f: &dyn Fn(&KVPair<T>) -> String) {
         let n = self.children.len();
         for (i, hijo) in self.children.iter().enumerate() {
             let ultimo = i + 1 == n;
@@ -323,28 +323,28 @@ impl<T: fmt::Debug + Clone, const M: usize> Node<T, M> {
             let (lo, hi) = self.hueco(i);
             buf.push_str(&format!(
                 "{prefijo}{conector}{}\n",
-                hijo.etiqueta_hijo(lo, hi)
+                hijo.etiqueta_hijo_con(lo, hi, f)
             ));
 
             let pref = format!("{prefijo}{}", if ultimo { "    " } else { "│   " });
-            hijo.imprime_hijos(buf, &pref);
+            hijo.imprime_hijos_con(buf, &pref, f);
         }
     }
 }
 
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for Node<T, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut buf = format!("{}\n", self.cabecera());
-        self.imprime_hijos(&mut buf, "");
+        let mut buf = format!("{}\n", self.cabecera_con(&|kv| format!("{kv:?}")));
+        self.imprime_hijos_con(&mut buf, "", &|kv| format!("{kv:?}"));
         write!(f, "{}", buf.trim_end())
     }
 }
 
-struct ArbolB<T: Clone, const M: usize = 3> {
+pub struct ArbolB<T: Clone, const M: usize = 3> {
     root: Node<T, M>,
 }
 
-type ConjuntoB = ArbolB<()>;
+pub type ConjuntoB = ArbolB<()>;
 
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -353,17 +353,17 @@ impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
 }
 
 impl<T: fmt::Debug + Clone, const M: usize> ArbolB<T, M> {
-    fn a_cadena(&self) -> String {
+    pub fn a_cadena(&self) -> String {
         format!("{:?}", self)
     }
 
-    fn imprime(&self) {
+    pub fn imprime(&self) {
         println!("{:?}", self);
     }
 }
 
 impl<T: Clone, const M: usize> ArbolB<T, M> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         assert!(M >= 3);
         Self {
             root: Node {
@@ -373,7 +373,7 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         }
     }
 
-    fn insertar(&mut self, clave: i32, valor: T) {
+    pub fn insertar(&mut self, clave: i32, valor: T) {
         let kv = KVPair {
             key: clave,
             value: valor,
@@ -424,11 +424,11 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         profs.iter().all(|&p| p == profs[0])
     }
 
-    fn busca(&self, key: i32) -> Option<&KVPair<T>> {
+    pub fn busca(&self, key: i32) -> Option<&KVPair<T>> {
         self.root.busca(key)
     }
 
-    fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
+    pub fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
         let kv = match self.root.elimina(key) {
             Err(ElimError::NoEncontrada) => return None,
             Ok(kv) | Err(ElimError::Underflow(kv)) => kv,
@@ -439,6 +439,12 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         }
 
         Some(kv)
+    }
+
+    pub fn a_cadena_claves(&self) -> String {
+        let mut buf = format!("{}\n", self.root.cabecera_con(&|kv| kv.key.to_string()));
+        self.root.imprime_hijos_con(&mut buf, "", &|kv| kv.key.to_string());
+        buf.trim_end().to_string()
     }
 }
 
