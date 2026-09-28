@@ -1,6 +1,12 @@
+//! REPL interactivo para insertar, eliminar y buscar llaves en un árbol B cuyo
+//! orden se elige en runtime (3-8). Tras cada inserción o eliminación imprime el
+//! árbol, y el comando `verificar` reporta invariantes y balanceo.
+
 use bonsai_rs::{ArbolB, KVPair};
 use std::io::{self, Write};
 
+/// Adaptador para usar `ArbolB<(), M>` con `M` elegido en runtime,
+/// borrando el const generic mediante `Box<dyn ArbolDyn>`.
 trait ArbolDyn {
     fn insertar(&mut self, k: i32);
     fn elimina(&mut self, k: i32) -> Option<KVPair<()>>;
@@ -31,6 +37,7 @@ impl<const M: usize> ArbolDyn for ArbolB<(), M> {
     }
 }
 
+/// Construye un `Box<dyn ArbolDyn>` del orden pedido (3-8), o `None` si no está soportado.
 fn nuevo_arbol(m: usize) -> Option<Box<dyn ArbolDyn>> {
     match m {
         3 => Some(Box::new(ArbolB::<(), 3>::new())),
@@ -43,10 +50,12 @@ fn nuevo_arbol(m: usize) -> Option<Box<dyn ArbolDyn>> {
     }
 }
 
+/// Parsea una llave `i32` desde la entrada.
 fn parse_key(s: &str) -> Option<i32> {
     s.parse().ok()
 }
 
+/// Pide el orden del árbol, crea el REPL y procesa los comandos hasta `exit`.
 fn main() {
     println!("--- Bonsai REPL ---");
 
@@ -110,6 +119,7 @@ fn main() {
     }
 }
 
+/// Inserta una llave y reimprime el árbol.
 fn cmd_insertar(arbol: &mut dyn ArbolDyn, args: &[&str]) {
     let [key_str] = args else {
         println!("Uso: insertar <llave>");
@@ -125,6 +135,7 @@ fn cmd_insertar(arbol: &mut dyn ArbolDyn, args: &[&str]) {
     println!("{}", arbol.a_cadena());
 }
 
+/// Elimina una llave y reimprime el árbol.
 fn cmd_eliminar(arbol: &mut dyn ArbolDyn, args: &[&str]) {
     let [key_str] = args else {
         println!("Uso: eliminar <llave>");
@@ -142,6 +153,7 @@ fn cmd_eliminar(arbol: &mut dyn ArbolDyn, args: &[&str]) {
     println!("{}", arbol.a_cadena());
 }
 
+/// Indica si una llave está en el árbol.
 fn cmd_buscar(arbol: &dyn ArbolDyn, args: &[&str]) {
     let [key_str] = args else {
         println!("Uso: buscar <llave>");
@@ -159,6 +171,7 @@ fn cmd_buscar(arbol: &dyn ArbolDyn, args: &[&str]) {
     }
 }
 
+/// Imprime el reporte de verificación del árbol.
 fn cmd_verificar(arbol: &dyn ArbolDyn) {
     print!("{}", arbol.verificar());
 }

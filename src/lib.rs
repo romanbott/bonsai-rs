@@ -1,12 +1,35 @@
+//! Árbol B de orden configurable (`M` = máximo de hijos por nodo) sobre pares `i32 -> T`.
+//!
+//! El orden `M` es un parámetro constante de tipo (`M = 3` por defecto). Cada nodo
+//! guarda llaves ordenadas y subárboles en los "huecos" entre ellas
+//! (`hijos = llaves + 1`). La inserción y la eliminación son reactivas: propagan
+//! hacia arriba el split (`Err` con la llave promovida) o el underflow
+//! (`Err(Underflow)`) para que el llamador rebalancee.
+//!
+//! ```
+//! use bonsai_rs::ArbolB;
+//!
+//! let mut arbol = ArbolB::<&str, 3>::new();
+//! arbol.insertar(1, "uno");
+//! arbol.insertar(2, "dos");
+//!
+//! assert!(arbol.busca(1).is_some());
+//! assert_eq!(arbol.elimina(2).is_some(), true);
+//! assert!(arbol.busca(2).is_none());
+//! assert_eq!(arbol.a_cadena_claves(), "[1]");
+//! ```
+
 use std::fmt;
 use std::mem;
 
+/// Par llave-valor almacenado en un nodo (llave `i32`, valor `T`).
 #[derive(PartialEq, Eq, Clone)]
 pub struct KVPair<T: Clone> {
     key: i32,
     value: T,
 }
 
+/// Par de valor unitario a partir de una llave (para árboles de solo llaves).
 impl From<i32> for KVPair<()> {
     fn from(value: i32) -> Self {
         KVPair {
@@ -16,26 +39,36 @@ impl From<i32> for KVPair<()> {
     }
 }
 
+/// Formatea como `llave: valor`.
 impl<T: fmt::Debug + Clone> fmt::Debug for KVPair<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {:?}", self.key, self.value)
     }
 }
 
+/// Resultado de eliminar en un nodo.
+///
+/// - `NoEncontrada`: la llave no está en el subárbol.
+/// - `Underflow`: se eliminó, pero el nodo quedó bajo el mínimo de llaves y el
+///   llamador debe rebalancearlo (lleva el par eliminado).
 #[derive(PartialEq, Eq, Debug)]
 enum ElimError<T: Clone> {
     NoEncontrada,
     Underflow(KVPair<T>),
 }
 
+/// Nodo del árbol B: llaves ordenadas y subárboles en los huecos entre ellas.
+/// Un nodo interno cumple `hijos = llaves + 1`.
 struct Node<T: Clone, const M: usize = 3> {
     keys: Vec<KVPair<T>>,
     children: Vec<Node<T, M>>,
 }
 
 impl<T: Clone, const M: usize> Node<T, M> {
+    /// Mínimo de llaves de un nodo no-raíz: `(M + 1) / 2 - 1`.
     const Q: usize = (M + 1) / 2 - 1;
 
+    /// Índice del primer hueco a la derecha de `key` (posición de búsqueda/inserción).
     fn key_pos(&self, key: i32) -> usize {
         self.keys
             .iter()
@@ -43,14 +76,17 @@ impl<T: Clone, const M: usize> Node<T, M> {
             .unwrap_or(self.keys.len())
     }
 
+    /// Hijo por el que descender para `key`.
     fn busca_hijo(&self, key: i32) -> &Node<T, M> {
         &self.children[self.key_pos(key)]
     }
 
+    /// `true` si el nodo no tiene hijos.
     fn es_hoja(&self) -> bool {
         self.children.len() == 0
     }
 
+    /// Busca `key` en el subárbol; devuelve el par si existe.
     fn busca(&self, key: i32) -> Option<&KVPair<T>> {
         if let Some(kv) = self.keys.iter().find(|kv| kv.key == key) {
             return Some(kv);
@@ -65,6 +101,10 @@ impl<T: Clone, const M: usize> Node<T, M> {
         hijo.busca(key)
     }
 
+    /// Inserta `kv` en el subárbol.
+    ///
+    /// Si el nodo desborda, devuelve `Err(kv)` con la llave a promover: el llamador
+    /// debe hacer `split` e insertar la llave en el padre.
     fn insertar(&mut self, kv: KVPair<T>) -> Result<(), KVPair<T>> {
         if self.es_hoja() {
             let pos = self.key_pos(kv.key);
@@ -103,6 +143,8 @@ impl<T: Clone, const M: usize> Node<T, M> {
         return Err(self.keys.remove(M / 2));
     }
 
+    /// Divide el nodo desbordado en dos, repartiendo llaves e hijos
+    /// (la izquierda queda con `M / 2` llaves).
     fn split(mut self) -> (Node<T, M>, Node<T, M>) {
         assert!(self.keys.len() == M - 1);
 
@@ -138,6 +180,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
         return (left, right);
     }
 
+    /// Par de menor llave del subárbol.
     fn min(&self) -> &KVPair<T> {
         if self.children.len() == 0 {
             self.keys.first().unwrap()
@@ -146,6 +189,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
         }
     }
 
+    /// Par de mayor llave del subárbol.
     fn max(&self) -> &KVPair<T> {
         if self.children.len() == 0 {
             self.keys.last().unwrap()
@@ -154,6 +198,10 @@ impl<T: Clone, const M: usize> Node<T, M> {
         }
     }
 
+    /// Elimina `key` del subárbol.
+    ///
+    /// Devuelve el par eliminado, `Underflow` si el nodo quedó bajo el mínimo
+    /// (el llamador debe rebalancear), o `NoEncontrada` si la llave no está.
     fn elimina(&mut self, key: i32) -> Result<KVPair<T>, ElimError<T>> {
         // Caso base: nodo hoja
         if self.es_hoja() {
@@ -200,6 +248,8 @@ impl<T: Clone, const M: usize> Node<T, M> {
         }
     }
 
+    /// Repara el underflow del hijo en `pos`: préstamo del hermano izquierdo o
+    /// derecho, o fusión. Propaga `Underflow` si este nodo también queda bajo el mínimo.
     fn rebalancea(&mut self, pos: usize, kv: KVPair<T>) -> Result<KVPair<T>, ElimError<T>> {
         debug_assert!(self.children[pos].keys.len() == Self::Q - 1);
 
@@ -284,6 +334,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
 }
 
 impl<T: Clone, const M: usize> Node<T, M> {
+    /// Cotas (llaves vecinas) del hueco `i`, para etiquetar el rango del hijo.
     fn hueco(&self, i: usize) -> (Option<i32>, Option<i32>) {
         let lo = if i > 0 {
             self.keys.get(i - 1).map(|kv| kv.key)
@@ -294,11 +345,13 @@ impl<T: Clone, const M: usize> Node<T, M> {
         (lo, hi)
     }
 
+    /// Representa las llaves del nodo como `[k0, k1, ...]` usando el formateador dado.
     fn cabecera_con(&self, f: &dyn Fn(&KVPair<T>) -> String) -> String {
         let ks = self.keys.iter().map(f).collect::<Vec<_>>().join(", ");
         format!("[{ks}]")
     }
 
+    /// Etiqueta de un hijo: su rango de hueco más la cabecera del hijo.
     fn etiqueta_hijo_con(
         &self,
         lo: Option<i32>,
@@ -314,6 +367,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
         format!("{rango:<10}{}", self.cabecera_con(f))
     }
 
+    /// Dibuja recursivamente el subárbol con conectores de árbol.
     fn imprime_hijos_con(&self, buf: &mut String, prefijo: &str, f: &dyn Fn(&KVPair<T>) -> String) {
         let n = self.children.len();
         for (i, hijo) in self.children.iter().enumerate() {
@@ -331,6 +385,8 @@ impl<T: Clone, const M: usize> Node<T, M> {
         }
     }
 
+    /// Recorre el subárbol verificando las cotas de llaves e hijos, y acumula
+    /// las profundidades de las hojas.
     fn verifica_nodo(&self, prof: usize, es_raiz: bool, buf: &mut String, hojas: &mut Vec<usize>) {
         let (min_keys, max_keys) = if es_raiz {
             (0, M - 1)
@@ -347,7 +403,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
             self.children.len()
         ));
         if !llaves_ok {
-            buf.push_str(&format!("  ✗ llaves fuera de [{min_keys}, {max_keys}]"));
+            buf.push_str(&format!("  [INCORRECTO] llaves fuera de [{min_keys}, {max_keys}]"));
         }
         if !hijos_ok {
             buf.push_str("  [INCORRECTO] hijos != llaves + 1");
@@ -367,6 +423,7 @@ impl<T: Clone, const M: usize> Node<T, M> {
     }
 }
 
+/// Representa el subárbol en formato de árbol con intervalos por hueco.
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for Node<T, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut buf = format!("{}\n", self.cabecera_con(&|kv| format!("{kv:?}")));
@@ -375,12 +432,15 @@ impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for Node<T, M> {
     }
 }
 
+/// Árbol B de orden `M` (`M >= 3`). Gestiona el crecimiento y decrecimiento de la raíz.
 pub struct ArbolB<T: Clone, const M: usize = 3> {
     root: Node<T, M>,
 }
 
+/// Atajo para un árbol de solo llaves (`ArbolB<()>`).
 pub type ConjuntoB = ArbolB<()>;
 
+/// Representa el árbol con intervalos por hueco (llave y valor).
 impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.root)
@@ -388,16 +448,19 @@ impl<T: fmt::Debug + Clone, const M: usize> fmt::Debug for ArbolB<T, M> {
 }
 
 impl<T: fmt::Debug + Clone, const M: usize> ArbolB<T, M> {
+    /// Devuelve la representación del árbol con llave y valor.
     pub fn a_cadena(&self) -> String {
         format!("{:?}", self)
     }
 
+    /// Imprime el árbol (llave y valor) por `stdout`.
     pub fn imprime(&self) {
         println!("{:?}", self);
     }
 }
 
 impl<T: Clone, const M: usize> ArbolB<T, M> {
+    /// Crea un árbol vacío.
     pub fn new() -> Self {
         assert!(M >= 3);
         Self {
@@ -408,6 +471,7 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         }
     }
 
+    /// Inserta (o reemplaza) el par `(clave, valor)`.
     pub fn insertar(&mut self, clave: i32, valor: T) {
         let kv = KVPair {
             key: clave,
@@ -434,6 +498,7 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         self.root.children.push(right);
     }
 
+    /// `true` si todo nodo interno cumple `hijos = llaves + 1`.
     fn es_valido(&self) -> bool {
         fn check<T: Clone, const M: usize>(nodo: &Node<T, M>) -> bool {
             if !nodo.es_hoja() && nodo.children.len() != nodo.keys.len() + 1 {
@@ -444,6 +509,7 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         check(&self.root)
     }
 
+    /// `true` si todas las hojas están a la misma profundidad.
     fn hojas_balanceadas(&self) -> bool {
         fn profundidades<T: Clone, const M: usize>(nodo: &Node<T, M>, prof: usize) -> Vec<usize> {
             if nodo.es_hoja() {
@@ -459,10 +525,12 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         profs.iter().all(|&p| p == profs[0])
     }
 
+    /// Devuelve el par con `key`, si existe.
     pub fn busca(&self, key: i32) -> Option<&KVPair<T>> {
         self.root.busca(key)
     }
 
+    /// Elimina `key`; devuelve el par eliminado o `None` si no estaba.
     pub fn elimina(&mut self, key: i32) -> Option<KVPair<T>> {
         let kv = match self.root.elimina(key) {
             Err(ElimError::NoEncontrada) => return None,
@@ -476,6 +544,7 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         Some(kv)
     }
 
+    /// Devuelve la representación del árbol mostrando solo las llaves.
     pub fn a_cadena_claves(&self) -> String {
         let mut buf = format!("{}\n", self.root.cabecera_con(&|kv| kv.key.to_string()));
         self.root
@@ -483,6 +552,9 @@ impl<T: Clone, const M: usize> ArbolB<T, M> {
         buf.trim_end().to_string()
     }
 
+    /// Recorre el árbol y devuelve un reporte de verificación: por cada nodo sus
+    /// cotas de llaves e hijos, más las profundidades de las hojas y el veredicto
+    /// de balanceo.
     pub fn verificar(&self) -> String {
         let mut buf = String::new();
         let mut hojas = Vec::new();
